@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Claude Usage</title>
+		<style>
+			:root {
+				color-scheme: dark;
+				--bg: #2d2d2d;
+				--fg: #d8d8d8;
+				--muted: #969696;
+				--accept: #cc785c; /* Claude clay */
+				--line: #3a3a3a;
+				--field: #1d1d1d;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				padding: 12px 16px 20px;
+				font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+				font-size: 12px;
+				color: var(--fg);
+				background: var(--bg);
+			}
+			h2 {
+				font-size: 11px;
+				text-transform: uppercase;
+				letter-spacing: 0.6px;
+				color: var(--muted);
+				margin: 18px 0 8px;
+				border-bottom: 1px solid var(--line);
+				padding-bottom: 4px;
+			}
+			.row {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				margin: 8px 0;
+			}
+			label.title {
+				flex: 0 0 84px;
+				text-align: right;
+				color: var(--muted);
+			}
+			select,
+			textarea,
+			input {
+				flex: 1;
+				background: var(--field);
+				color: var(--fg);
+				border: 1px solid var(--line);
+				border-radius: 5px;
+				padding: 6px 8px;
+				font-size: 12px;
+				font-family: inherit;
+			}
+			textarea {
+				resize: vertical;
+				min-height: 54px;
+				word-break: break-all;
+			}
+			button {
+				background: #4c4c4c;
+				color: var(--fg);
+				border: none;
+				border-radius: 5px;
+				padding: 7px 12px;
+				font-size: 12px;
+				cursor: pointer;
+			}
+			button:hover {
+				background: #5a5a5a;
+			}
+			button.primary {
+				background: var(--accept);
+				color: #fff;
+				font-weight: 600;
+			}
+			button.primary:hover {
+				background: #d9876b;
+			}
+			button:disabled {
+				opacity: 0.45;
+				cursor: default;
+			}
+			.btnrow {
+				display: flex;
+				gap: 8px;
+				margin: 10px 0;
+			}
+			.hidden {
+				display: none !important;
+			}
+			.status {
+				font-size: 11px;
+				margin-top: 8px;
+				min-height: 14px;
+			}
+			.status.ok {
+				color: #3fb950;
+			}
+			.status.err {
+				color: #f0883e;
+			}
+			.hint {
+				color: var(--muted);
+				font-size: 11px;
+				line-height: 1.5;
+				margin: 6px 0;
+			}
+			.signed-in {
+				color: #3fb950;
+				font-weight: 600;
+			}
+			a {
+				color: var(--accept);
+			}
+		</style>
+	</head>
+	<body>
+		<h2>Window</h2>
+		<div class="row">
+			<label class="title">Limit</label>
+			<select id="window">
+				<option value="five_hour">5-hour session</option>
+				<option value="seven_day">7-day (all models)</option>
+				<option value="seven_day_sonnet">7-day Sonnet</option>
+				<option value="seven_day_opus">7-day Opus</option>
+			</select>
+		</div>
+
+		<h2>Claude account</h2>
+
+		<!-- Signed out -->
+		<div id="signed-out">
+			<p class="hint">
+				Sign in with your Claude account to read your usage limits. This opens
+				claude.ai in your browser.
+			</p>
+			<div class="btnrow">
+				<button id="signin" class="primary">Sign in with Claude</button>
+			</div>
+
+			<!-- Code paste step (revealed after sign-in is started) -->
+			<div id="code-step" class="hidden">
+				<p class="hint">
+					After approving, claude.ai shows an authorization code. Copy the whole
+					string and paste it below, then complete sign-in.
+				</p>
+				<div class="row">
+					<textarea id="code" placeholder="Paste the code shown by Claude…"></textarea>
+				</div>
+				<div class="btnrow">
+					<button id="exchange" class="primary">Complete sign-in</button>
+					<button id="reopen">Reopen Claude</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Signed in -->
+		<div id="signed-in" class="hidden">
+			<p class="hint"><span class="signed-in">✓ Signed in.</span> Usage refreshes automatically.</p>
+			<div class="btnrow">
+				<button id="refresh">Refresh now</button>
+				<button id="signout">Sign out</button>
+			</div>
+		</div>
+
+		<div id="status" class="status"></div>
+
+		<script>
+			let websocket = null;
+			let uuid = null;
+			let actionUUID = null;
+			let settings = {};
+			let lastAuthUrl = null;
+
+			const $ = (id) => document.getElementById(id);
+
+			function send(obj) {
+				if (websocket && websocket.readyState === 1) websocket.send(JSON.stringify(obj));
+			}
+			function toPlugin(payload) {
+				send({ event: "sendToPlugin", context: uuid, action: actionUUID, payload });
+			}
+			function saveSettings() {
+				send({ event: "setSettings", context: uuid, payload: settings });
+			}
+			function setStatus(text, kind) {
+				const el = $("status");
+				el.textContent = text || "";
+				el.className = "status" + (kind ? " " + kind : "");
+			}
+
+			function showSignedIn(signedIn) {
+				$("signed-in").classList.toggle("hidden", !signedIn);
+				$("signed-out").classList.toggle("hidden", signedIn);
+			}
+			function showCodeStep(show) {
+				$("code-step").classList.toggle("hidden", !show);
+			}
+
+			// --- Stream Deck entry point ---
+			function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+				uuid = inUUID;
+				try {
+					const ai = typeof inActionInfo === "string" ? JSON.parse(inActionInfo) : inActionInfo;
+					actionUUID = ai && ai.action;
+					settings = (ai && ai.payload && ai.payload.settings) || {};
+				} catch (e) {
+					settings = {};
+				}
+				$("window").value = settings.window || "five_hour";
+
+				websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+				websocket.onopen = () => {
+					send({ event: inRegisterEvent, uuid: inUUID });
+					toPlugin({ action: "getStatus" });
+				};
+				websocket.onmessage = (evt) => {
+					const msg = JSON.parse(evt.data);
+					if (msg.event === "didReceiveSettings") {
+						settings = (msg.payload && msg.payload.settings) || {};
+						$("window").value = settings.window || "five_hour";
+					} else if (msg.event === "sendToPropertyInspector") {
+						handlePluginMessage(msg.payload || {});
+					}
+				};
+			}
+			window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+
+			function handlePluginMessage(p) {
+				switch (p.type) {
+					case "status":
+						showSignedIn(p.signedIn);
+						showCodeStep(!p.signedIn && p.awaitingCode);
+						if (p.error === "auth") setStatus("Session expired — sign in again.", "err");
+						else if (p.error === "rate-limited") setStatus("Rate limited — retrying shortly.", "err");
+						else if (p.error && p.error.startsWith("http")) setStatus("Usage request failed (" + p.error + ").", "err");
+						else if (p.error === "network") setStatus("Network error reaching Claude.", "err");
+						else setStatus("");
+						break;
+					case "auth-started":
+						lastAuthUrl = p.url;
+						showCodeStep(true);
+						setStatus("Approve in your browser, then paste the code.", "");
+						break;
+					case "auth-success":
+						showSignedIn(true);
+						showCodeStep(false);
+						$("code").value = "";
+						setStatus("Signed in.", "ok");
+						break;
+					case "auth-error":
+						setStatus(p.message || "Sign-in failed.", "err");
+						break;
+				}
+			}
+
+			// --- UI wiring ---
+			$("window").addEventListener("change", (e) => {
+				settings.window = e.target.value;
+				saveSettings();
+			});
+			$("signin").addEventListener("click", () => {
+				setStatus("Opening claude.ai…", "");
+				toPlugin({ action: "signin" });
+			});
+			$("reopen").addEventListener("click", () => {
+				if (lastAuthUrl) send({ event: "openUrl", payload: { url: lastAuthUrl } });
+				else toPlugin({ action: "signin" });
+			});
+			$("exchange").addEventListener("click", () => {
+				const value = $("code").value.trim();
+				if (!value) {
+					setStatus("Paste the code first.", "err");
+					return;
+				}
+				setStatus("Completing sign-in…", "");
+				toPlugin({ action: "exchange", value });
+			});
+			$("refresh").addEventListener("click", () => toPlugin({ action: "refresh" }));
+			$("signout").addEventListener("click", () => {
+				toPlugin({ action: "signout" });
+				setStatus("Signed out.", "");
+			});
+		</script>
+	</body>
+</html>

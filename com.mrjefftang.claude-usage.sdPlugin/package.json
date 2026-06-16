@@ -1,0 +1,10 @@
+{
+	"name": "claude-usage-streamdeck-plugin",
+	"version": "1.0.0",
+	"description": "Stream Deck plugin runtime for displaying Claude usage limits.",
+	"private": true,
+	"main": "plugin.js",
+	"dependencies": {
+		"ws": "^8.18.0"
+	}
+}

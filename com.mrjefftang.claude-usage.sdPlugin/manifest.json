@@ -1,0 +1,48 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+	"UUID": "com.mrjefftang.claude-usage",
+	"Name": "Claude Usage",
+	"Version": "1.0.0.0",
+	"Author": "mrjefftang",
+	"Description": "Displays your current Claude usage limits as a gauge: percent used, color-coded status, and time until the window resets. Signs in with your Claude account via OAuth.",
+	"Category": "Claude Usage",
+	"CategoryIcon": "imgs/plugin/category",
+	"Icon": "imgs/plugin/icon",
+	"URL": "https://github.com/mrjefftang/streamdeck-claude-usage",
+	"SDKVersion": 2,
+	"CodePath": "plugin.js",
+	"Nodejs": {
+		"Version": "20",
+		"Debug": "enabled"
+	},
+	"Software": {
+		"MinimumVersion": "6.5"
+	},
+	"OS": [
+		{
+			"Platform": "mac",
+			"MinimumVersion": "13"
+		},
+		{
+			"Platform": "windows",
+			"MinimumVersion": "10"
+		}
+	],
+	"Actions": [
+		{
+			"UUID": "com.mrjefftang.claude-usage.limits",
+			"Name": "Usage Limit",
+			"Icon": "imgs/actions/usage/icon",
+			"Tooltip": "Shows the selected Claude usage window as a gauge with percent used and time to reset.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": ["Keypad"],
+			"States": [
+				{
+					"Image": "imgs/actions/usage/key",
+					"TitleAlignment": "bottom",
+					"ShowTitle": false
+				}
+			]
+		}
+	]
+}
