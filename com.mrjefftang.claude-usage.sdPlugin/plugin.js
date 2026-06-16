@@ -11,12 +11,13 @@
 const WebSocket = require("ws");
 const oauth = require("./lib/oauth");
 const { fetchUsage, pickWindow } = require("./lib/usage");
-const { renderGauge, renderMessage } = require("./lib/render");
+const { renderGauge, renderBars, renderMessage } = require("./lib/render");
 
 // --- Tunables ---------------------------------------------------------------
 const FETCH_INTERVAL_MS = 180_000; // endpoint is rate limited; 3 min is the safe floor
 const TICK_INTERVAL_MS = 30_000; // re-render countdown from cache between fetches
-const ACTION_UUID = "com.mrjefftang.claude-usage.limits";
+const ACTION_GAUGE = "com.mrjefftang.claude-usage.limits";
+const ACTION_BARS = "com.mrjefftang.claude-usage.bars";
 
 const WINDOWS = {
 	five_hour: { label: "5H" },
@@ -79,7 +80,8 @@ function setGlobalSettings(payload) {
 	sendRaw({ event: "setGlobalSettings", context: PLUGIN_UUID, payload });
 }
 function sendToPI(context, payload) {
-	sendRaw({ event: "sendToPropertyInspector", context, action: ACTION_UUID, payload });
+	const ctx = contexts.get(context);
+	sendRaw({ event: "sendToPropertyInspector", context, action: ctx ? ctx.action : undefined, payload });
 }
 
 // --- Auth state persistence -------------------------------------------------
@@ -100,8 +102,9 @@ function isSignedIn() {
 function renderContext(contextId) {
 	const ctx = contexts.get(contextId);
 	if (!ctx) return;
+	const isBars = ctx.action === ACTION_BARS;
 	const windowKey = WINDOWS[ctx.window] ? ctx.window : DEFAULT_WINDOW;
-	const label = WINDOWS[windowKey].label;
+	const label = isBars ? "5H+7D" : WINDOWS[windowKey].label;
 	setTitle(contextId, ""); // we draw everything inside the SVG
 
 	if (!isSignedIn()) {
@@ -116,6 +119,18 @@ function renderContext(contextId) {
 		setImage(contextId, renderMessage({ label, title: "…", subtitle: "loading" }));
 		return;
 	}
+
+	if (isBars) {
+		setImage(
+			contextId,
+			renderBars({
+				five: pickWindow(usageData, "five_hour"),
+				week: pickWindow(usageData, "seven_day"),
+			})
+		);
+		return;
+	}
+
 	const win = pickWindow(usageData, windowKey);
 	if (!win) {
 		setImage(contextId, renderMessage({ label, title: "N/A", subtitle: "no data" }));
@@ -294,7 +309,7 @@ function onMessage(raw) {
 		}
 		case "willAppear": {
 			const window = (payload && payload.settings && payload.settings.window) || DEFAULT_WINDOW;
-			contexts.set(context, { window });
+			contexts.set(context, { window, action: msg.action });
 			startTimers();
 			renderContext(context);
 			if (isSignedIn() && !usageData) pollNow();
@@ -307,7 +322,8 @@ function onMessage(raw) {
 		}
 		case "didReceiveSettings": {
 			const window = (payload && payload.settings && payload.settings.window) || DEFAULT_WINDOW;
-			contexts.set(context, { window });
+			const prev = contexts.get(context);
+			contexts.set(context, { window, action: msg.action || (prev && prev.action) });
 			renderContext(context);
 			break;
 		}

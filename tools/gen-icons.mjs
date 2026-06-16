@@ -116,10 +116,61 @@ function drawIcon(size) {
 	return buf;
 }
 
-function write(path, size) {
+/** Draw a rounded-square icon with two horizontal bars (top ~45%, bottom ~75% filled). */
+function drawBars(size) {
+	const buf = Buffer.alloc(size * size * 4);
+	const bg = hexToRgb("#17181c");
+	const track = hexToRgb("#2c2f36");
+	const accent = hexToRgb("#cc785c");
+	const corner = size * 0.22;
+	const marginX = size * 0.16;
+	const barW = size - marginX * 2;
+	const barH = size * 0.13;
+	const rx = barH / 2;
+	const rows = [
+		{ y: size * 0.34, fill: 0.45 },
+		{ y: size * 0.58, fill: 0.75 },
+	];
+
+	function roundedAlpha(x, y, bx, by, bw, bh, r) {
+		if (x < bx || x > bx + bw || y < by || y > by + bh) return 0;
+		const dxL = bx + r - x;
+		const dxR = x - (bx + bw - r);
+		const dyT = by + r - y;
+		const dyB = y - (by + bh - r);
+		const ox = Math.max(dxL, dxR, 0);
+		const oy = Math.max(dyT, dyB, 0);
+		if (ox > 0 && oy > 0) return Math.min(1, r - Math.hypot(ox, oy) + 0.5);
+		return 1;
+	}
+
+	for (let y = 0; y < size; y++) {
+		for (let x = 0; x < size; x++) {
+			const i = (y * size + x) * 4;
+			const rxBg = Math.max(corner - x, x - (size - corner), 0);
+			const ryBg = Math.max(corner - y, y - (size - corner), 0);
+			const inCorner = rxBg > 0 && ryBg > 0;
+			const cornerDist = Math.hypot(rxBg, ryBg);
+			if (!inCorner || cornerDist <= corner) {
+				blend(buf, i, bg, inCorner ? Math.min(1, corner - cornerDist + 0.5) : 1);
+			}
+			for (const row of rows) {
+				const px = x + 0.5;
+				const py = y + 0.5;
+				const tA = roundedAlpha(px, py, marginX, row.y, barW, barH, rx);
+				if (tA > 0) blend(buf, i, track, tA);
+				const fA = roundedAlpha(px, py, marginX, row.y, barW * row.fill, barH, rx);
+				if (fA > 0) blend(buf, i, accent, fA);
+			}
+		}
+	}
+	return buf;
+}
+
+function write(path, size, draw = drawIcon) {
 	const full = resolve(ROOT, path);
 	mkdirSync(dirname(full), { recursive: true });
-	writeFileSync(full, encodePng(size, size, drawIcon(size)));
+	writeFileSync(full, encodePng(size, size, draw(size)));
 	console.log(`wrote ${path} (${size}x${size})`);
 }
 
@@ -132,5 +183,9 @@ write("imgs/actions/usage/icon.png", 20);
 write("imgs/actions/usage/icon@2x.png", 40);
 write("imgs/actions/usage/key.png", 72);
 write("imgs/actions/usage/key@2x.png", 144);
+write("imgs/actions/bars/icon.png", 20, drawBars);
+write("imgs/actions/bars/icon@2x.png", 40, drawBars);
+write("imgs/actions/bars/key.png", 72, drawBars);
+write("imgs/actions/bars/key@2x.png", 144, drawBars);
 write("imgs/plugin/marketplace.png", 256);
 console.log("done");

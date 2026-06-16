@@ -15,8 +15,13 @@ percent used, and time until the window resets.
 3. **Renders a gauge** — a 270° arc colored green → amber → orange → red as you approach the
    limit, the percent used in the center, and the time to reset at the bottom.
 
-Each key can show a different window: **5-hour session**, **7-day (all models)**,
-**7-day Sonnet**, or **7-day Opus** — selectable in the Property Inspector.
+Two action types are included:
+
+- **Usage Limit** — a single gauge for one window: **5-hour session**, **7-day (all
+  models)**, **7-day Sonnet**, or **7-day Opus** (selectable in the Property Inspector).
+- **Usage Bars** — two horizontal bars on one key: 5-hour usage on top, weekly usage on the
+  bottom, each with its percentage on the right, and the time to the next 5-hour reset along
+  the bottom.
 
 Tap a key to force an immediate refresh.
 

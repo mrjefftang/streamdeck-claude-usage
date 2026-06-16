@@ -103,4 +103,39 @@ function renderMessage({ label, title, subtitle, color = COLORS.subtle }) {
 	return toDataUri(svg);
 }
 
-module.exports = { renderGauge, renderMessage, formatReset };
+/**
+ * Render two horizontal bars — 5-hour on top, weekly on the bottom — each with its
+ * percentage on the right, and the time to the next 5-hour reset along the bottom.
+ * @param {{five:{utilization:number,resetsAt:string|null}|null, week:{utilization:number}|null}} opts
+ */
+function renderBars({ five, week }) {
+	const MARGIN = 14;
+	const PCT_W = 34; // reserved on the right for the "100%" label
+	const BAR_X = MARGIN;
+	const BAR_W = SIZE - MARGIN - PCT_W - MARGIN;
+	const BAR_H = 18;
+	const RX = BAR_H / 2;
+	const PCT_X = SIZE - MARGIN;
+
+	function bar(value, labelText, labelY, barY) {
+		const has = value && typeof value.utilization === "number";
+		const pct = has ? Math.round(value.utilization) : null;
+		const color = has ? colorFor(pct) : COLORS.subtle;
+		const fillW = has && pct > 0 ? Math.max(BAR_H, (BAR_W * pct) / 100) : 0;
+		const textY = barY + BAR_H - 4;
+		return `
+  <text x="${BAR_X}" y="${labelY}" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="${COLORS.subtle}" letter-spacing="1">${esc(labelText)}</text>
+  <rect x="${BAR_X}" y="${barY}" width="${BAR_W}" height="${BAR_H}" rx="${RX}" fill="${COLORS.track}"/>
+  ${fillW > 0 ? `<rect x="${BAR_X}" y="${barY}" width="${fillW.toFixed(1)}" height="${BAR_H}" rx="${RX}" fill="${color}"/>` : ""}
+  <text x="${PCT_X}" y="${textY}" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="${color}">${has ? pct + "%" : "—"}</text>`;
+	}
+
+	const reset = formatReset(five ? five.resetsAt : null);
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
+  <rect width="${SIZE}" height="${SIZE}" rx="24" fill="${COLORS.bg}"/>${bar(five, "5H", 32, 38)}${bar(week, "7D", 84, 90)}
+  <text x="${CX}" y="134" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="${COLORS.text}">↺ ${esc(reset)}</text>
+</svg>`;
+	return toDataUri(svg);
+}
+
+module.exports = { renderGauge, renderBars, renderMessage, formatReset };

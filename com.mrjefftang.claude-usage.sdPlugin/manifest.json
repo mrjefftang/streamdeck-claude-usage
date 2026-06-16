@@ -43,6 +43,21 @@
 					"ShowTitle": false
 				}
 			]
+		},
+		{
+			"UUID": "com.mrjefftang.claude-usage.bars",
+			"Name": "Usage Bars",
+			"Icon": "imgs/actions/bars/icon",
+			"Tooltip": "Two bars: 5-hour usage on top, weekly usage below, with time to the next 5-hour reset.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": ["Keypad"],
+			"States": [
+				{
+					"Image": "imgs/actions/bars/key",
+					"TitleAlignment": "bottom",
+					"ShowTitle": false
+				}
+			]
 		}
 	]
 }

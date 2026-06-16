@@ -121,15 +121,17 @@
 		</style>
 	</head>
 	<body>
-		<h2>Window</h2>
-		<div class="row">
-			<label class="title">Limit</label>
-			<select id="window">
-				<option value="five_hour">5-hour session</option>
-				<option value="seven_day">7-day (all models)</option>
-				<option value="seven_day_sonnet">7-day Sonnet</option>
-				<option value="seven_day_opus">7-day Opus</option>
-			</select>
+		<div id="window-section">
+			<h2>Window</h2>
+			<div class="row">
+				<label class="title">Limit</label>
+				<select id="window">
+					<option value="five_hour">5-hour session</option>
+					<option value="seven_day">7-day (all models)</option>
+					<option value="seven_day_sonnet">7-day Sonnet</option>
+					<option value="seven_day_opus">7-day Opus</option>
+				</select>
+			</div>
 		</div>
 
 		<h2>Claude account</h2>
@@ -212,6 +214,10 @@
 					settings = (ai && ai.payload && ai.payload.settings) || {};
 				} catch (e) {
 					settings = {};
+				}
+				// The bars action always shows 5h + weekly, so it has no window picker.
+				if (actionUUID && actionUUID.endsWith(".bars")) {
+					$("window-section").classList.add("hidden");
 				}
 				$("window").value = settings.window || "five_hour";
 
